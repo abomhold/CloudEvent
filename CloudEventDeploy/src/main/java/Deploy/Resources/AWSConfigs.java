@@ -2,8 +2,8 @@ package Deploy.Resources;
 
 import software.amazon.awssdk.services.lambda.model.Architecture;
 import software.amazon.awssdk.services.lambda.model.Runtime;
-
-record FunctionConfig(
+interface AWSConfigs {
+    record FunctionConfig(
             String functionName,
             String roleArn,
             String handler,
@@ -16,25 +16,35 @@ record FunctionConfig(
             String logGroupName,
             int retentionDays
     ) {
-        // Factory method with some default values
         public static FunctionConfig withDefaults(
-                String functionName,
-                String roleArn,
-                String handler,
-                String codeZipFilePath
         ) {
             return new FunctionConfig(
-                    functionName,
-                    roleArn,
-                    handler,
+                    "a",
+                    "b",
+                    "c",
                     "Default description",
-                    codeZipFilePath,
+                    "e",
                     Runtime.JAVA21,
                     Architecture.X86_64,
                     512,
                     30,
-                    "/aws/lambda/" + functionName,
+                    "/aws/lambda/",
                     14
             );
         }
     }
+
+    record LogGroupConfig(
+            String logGroupName,
+            String functionName,
+            long retentionDays
+    ) {
+        public static LogGroupConfig withDefaults() {
+            return new LogGroupConfig(
+                    "a",
+                    "b",
+                    14
+            );
+        }
+    }
+}

@@ -1,0 +1,6 @@
+#!/bin/bash
+maven clean
+maven package
+maven verify
+sam validate --lint
+sam build

@@ -3,8 +3,7 @@ lambda/Request.class
 lambda/Entry$1.class
 lambda/Helpers.class
 saaf/Inspector.class
-saaf/CloudEventInspector$1.class
 saaf/CloudEventInspector.class
 saaf/Response.class
-lambda/Entry.class
 local/Local.class
+lambda/Entry.class

@@ -8,9 +8,9 @@ Globals:
     Runtime: java21
     MemorySize: 1792
     Timeout: 900
-    EphemeralStorage:
-      Size: 512
-    PropagateTags: true
+#    EphemeralStorage
+#      Size: 512
+#    PropagateTags: true
 
 Resources:
   CloudEventFunction:
@@ -19,7 +19,7 @@ Resources:
       FunctionName: !Sub '${AWS::StackName}-lambda'
       Description: 'Lambda function'
       PackageType: Zip
-      CodeUri: .
+      CodeUri: './'
       Handler: lambda.Entry::handleRequest
       FunctionUrlConfig:
         AuthType: NONE

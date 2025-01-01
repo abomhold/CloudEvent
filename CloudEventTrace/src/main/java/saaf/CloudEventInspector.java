@@ -52,11 +52,12 @@ public class CloudEventInspector extends Inspector {
     //  must be the method that contains the timestamps calls
     private URI getURI() {
         String handleRequestTrace = Arrays.stream(Thread.currentThread().getStackTrace())
-                                          .filter(elem -> elem.getMethodName().equals("handleRequest"))
-                                          .findFirst()
-                                          .map(StackTraceElement::toString)
-                                          .orElse(context.getLogGroupName() + ":" + context.getLogStreamName());
+                .filter(elem -> elem.getMethodName().equals("handleRequest"))
+                .findFirst()
+                .map(StackTraceElement::toString)
+                .orElse(context.getLogGroupName() + ":" + context.getLogStreamName());
         return URI.create("urn:" + context.getInvokedFunctionArn() + ":" + handleRequestTrace);
     }
-}
 
+
+}

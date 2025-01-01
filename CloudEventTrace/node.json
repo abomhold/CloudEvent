@@ -1,6 +1,6 @@
 {
   "id": "arn:aws:lambda:us-east-1:980921732919:function:CloudEventTrace-lambda",
-  "host": "https://fz76kdno2yw2hihdbq53sxrjka0twbgw.lambda-url.us-east-1.on.aws/",
+  "host": "https://vqo7sxkzs22xvzyponjujohzoq0gvsuk.lambda-url.us-east-1.on.aws/",
   "platform": "AWS",
   "node_type": "worker",
   "tcp_port": "8080",

@@ -1,142 +1,88 @@
 package Deploy;
-import software.amazon.awssdk.core.SdkBytes;
-import software.amazon.awssdk.services.lambda.LambdaClient;
-import software.amazon.awssdk.services.lambda.model.Architecture;
-import software.amazon.awssdk.services.lambda.model.CreateFunctionRequest;
-import software.amazon.awssdk.services.lambda.model.CreateFunctionResponse;
-import software.amazon.awssdk.services.lambda.model.CreateFunctionUrlConfigRequest;
-import software.amazon.awssdk.services.lambda.model.CreateFunctionUrlConfigResponse;
-import software.amazon.awssdk.services.lambda.model.FunctionUrlAuthType;
-import software.amazon.awssdk.services.lambda.model.Runtime;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.cloudwatchlogs.CloudWatchLogsClient;
-import software.amazon.awssdk.services.cloudwatchlogs.model.CreateLogGroupRequest;
-import software.amazon.awssdk.services.cloudwatchlogs.model.CreateLogGroupResponse;
-import software.amazon.awssdk.services.cloudwatchlogs.model.PutRetentionPolicyRequest;
-import software.amazon.awssdk.services.cloudwatchlogs.model.PutRetentionPolicyResponse;
 
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.io.IOException;
+import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.iam.IamClient;
+import software.amazon.awssdk.services.iam.model.CreateRoleRequest;
+import software.amazon.awssdk.services.iam.model.CreateRoleResponse;
+import software.amazon.awssdk.services.iam.model.IamException;
+import software.amazon.awssdk.services.iam.model.PutRolePolicyRequest;
 
-/**
- * Demonstrates a simple builder pattern to create:
- *   1) A CloudWatch Log Group
- *   2) A Lambda function (Java 21) with given memory and timeout
- *   3) A Function URL with no auth
- *
- * This code uses only the AWS Lambda & CloudWatch Logs SDKs (AWS SDK for Java v2).
- */
+import java.util.Map;
+
+/// * ========================================================= */
+/// *                 Example usage (main)                      */
+/// * ========================================================= */
+//public static void main(String[] args) throws IOException {
+//    // Just an example usage. You must update the IAM role ARN and
+//    // the path to your .zip file containing the compiled Java code.
+//
+//    String exampleIamRoleArn = "arn:aws:iam::123456789012:role/YourLambdaRole";
+//    String exampleZipPath = "/path/to/your/lambda-code.zip";
+//
+//    new CloudEventFunctionBuilder()
+//            .functionName("my-sample-lambda")
+//            .description("Sample Lambda function - Java 21")
+//            .roleArn(exampleIamRoleArn)
+//            .handler("lambda.Entry::handleRequest")
+//            .runtime(Runtime.JAVA21)
+//            .architecture(Architecture.X86_64)
+//            .memorySize(1792)
+//            .timeout(900)
+//            .logGroupName("/aws/my-sample-lambda")
+//            .retentionDays(14)
+//            .codeZipFilePath(exampleZipPath)
+//            .create();
+//}
+//
+
 public class CloudEventFunctionBuilder {
 
-     /* ========================================================= */
-    /*   The create() method that does all the AWS calls         */
-    /* ========================================================= */
+    public record Policy(String version, Map<String, Object> statement) {
 
-    public void create() throws IOException {
+        public static String createLambdaIamRole(String roleName) {
+            Region region = Region.AWS_GLOBAL; // IAM is global
+            try (IamClient iamClient = IamClient.builder()
+                    .region(region)
+                    .credentialsProvider(ProfileCredentialsProvider.create())
+                    .build()) {
 
-        // 1) Create or update the Log Group (CloudWatch Logs)
-        createLogGroup();
+                // 1. Create the role (trust policy)
+                CreateRoleRequest createRoleRequest = CreateRoleRequest.builder()
+                        .roleName(roleName)
+                        .assumeRolePolicyDocument(trustPolicy)
+                        .description("Role for AWS Lambda to assume")
+                        .build();
 
-        // 2) Create the Lambda function
-        CreateFunctionResponse functionResponse = createLambdaFunction();
+                CreateRoleResponse createRoleResponse = iamClient.createRole(createRoleRequest);
+                String roleArn = createRoleResponse.role().arn();
+                System.out.println("Created role with ARN: " + roleArn);
 
-        // 3) Create the function URL config
-        CreateFunctionUrlConfigResponse urlConfigResponse = createFunctionUrl(functionResponse.functionArn());
+                // 2. Attach an inline policy (basic Lambda execution policy)
+                PutRolePolicyRequest putRolePolicyRequest = PutRolePolicyRequest.builder()
+                        .roleName(roleName)
+                        .policyName("LambdaBasicExecutionPolicy")
+                        .policyDocument(inlinePolicy)
+                        .build();
 
-        // Display the results
-        System.out.println("Created Lambda function ARN: " + functionResponse.functionArn());
-        System.out.println("Lambda Function URL:        " + urlConfigResponse.functionUrl());
-    }
+                iamClient.putRolePolicy(putRolePolicyRequest);
+                System.out.println("Attached inline policy for logs.");
 
-    private CreateFunctionResponse createLambdaFunction() throws IOException {
-        LambdaClient lambdaClient = LambdaClient.create();
-        byte[] functionCode = Files.readAllBytes(Paths.get(codeZipFilePath));
-
-        CreateFunctionRequest request = CreateFunctionRequest.builder()
-                .functionName(functionName)
-                .description(description)
-                .role(roleArn)
-                .handler(handler)
-                .runtime(runtime)
-                .architectures(architecture)
-                .memorySize(memorySize)
-                .timeout(timeout)
-                .code(builder -> builder.zipFile(SdkBytes.fromByteArray(functionCode)))
-                .build();
-
-        return lambdaClient.createFunction(request);
-    }
-
-    private CreateFunctionUrlConfigResponse createFunctionUrl(String functionArn) {
-        LambdaClient lambdaClient = LambdaClient.create();
-
-        CreateFunctionUrlConfigRequest urlRequest = CreateFunctionUrlConfigRequest.builder()
-                .functionName(functionName)
-                .authType(FunctionUrlAuthType.NONE) // AuthType: NONE
-                .build();
-
-        return lambdaClient.createFunctionUrlConfig(urlRequest);
-    }
-
-    private void createLogGroup() {
-        if (logGroupName == null || logGroupName.isEmpty()) {
-            // If you want a default name, you can do so here
-            this.logGroupName = "/aws/" + functionName;
+                return roleArn;
+            } catch (IamException e) {
+                System.err.println("Error creating IAM role: " + e.awsErrorDetails().errorMessage());
+                throw e;
+            }
         }
 
-        CloudWatchLogsClient logsClient = CloudWatchLogsClient.create();
-
-        // 1) Create the log group
-        try {
-            CreateLogGroupRequest createLogGroupRequest = CreateLogGroupRequest.builder()
-                    .logGroupName(logGroupName)
-                    .build();
-
-            CreateLogGroupResponse createLogGroupResponse = logsClient.createLogGroup(createLogGroupRequest);
-            System.out.println("Created Log Group: " + logGroupName);
-        } catch (Exception e) {
-            // If LogGroup already exists, you might get a ResourceAlreadyExistsException.
-            // For simplicity, just printing.
-            System.out.println("Log Group creation skipped or already exists: " + e.getMessage());
+        // Example usage:
+        public static void main(String[] args) {
+            String roleName = "MyLambdaRoleDemo";
+            String newRoleArn = createLambdaIamRole(roleName);
+            System.out.println("Role ARN is: " + newRoleArn);
         }
 
-        // 2) Set the retention policy
-        try {
-            PutRetentionPolicyRequest putRetentionRequest = PutRetentionPolicyRequest.builder()
-                    .logGroupName(logGroupName)
-                    .retentionInDays(retentionDays)
-                    .build();
-
-            PutRetentionPolicyResponse putRetentionResponse = logsClient.putRetentionPolicy(putRetentionRequest);
-            System.out.println("Set retention policy for Log Group: " + logGroupName + " to " + retentionDays + " days.");
-        } catch (Exception e) {
-            System.out.println("Unable to set retention policy: " + e.getMessage());
+        public class LambdaRoleCreator {
         }
-    }
-
-    /* ========================================================= */
-    /*                 Example usage (main)                      */
-    /* ========================================================= */
-    public static void main(String[] args) throws IOException {
-        // Just an example usage. You must update the IAM role ARN and
-        // the path to your .zip file containing the compiled Java code.
-
-        String exampleIamRoleArn = "arn:aws:iam::123456789012:role/YourLambdaRole";
-        String exampleZipPath = "/path/to/your/lambda-code.zip";
-
-        new CloudEventFunctionBuilder()
-            .functionName("my-sample-lambda")
-            .description("Sample Lambda function - Java 21")
-            .roleArn(exampleIamRoleArn)
-            .handler("lambda.Entry::handleRequest")
-            .runtime(Runtime.JAVA21)
-            .architecture(Architecture.X86_64)
-            .memorySize(1792)
-            .timeout(900)
-            .logGroupName("/aws/my-sample-lambda")
-            .retentionDays(14)
-            .codeZipFilePath(exampleZipPath)
-            .create();
     }
 }

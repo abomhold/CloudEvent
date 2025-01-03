@@ -7,7 +7,6 @@ import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudwatchlogs.CloudWatchLogsClient;
 import software.amazon.awssdk.services.cloudwatchlogs.model.CreateLogGroupRequest;
-import software.amazon.awssdk.services.cloudwatchlogs.model.CreateLogGroupResponse;
 import software.amazon.awssdk.services.cloudwatchlogs.model.PutRetentionPolicyRequest;
 import software.amazon.awssdk.services.cloudwatchlogs.model.ResourceAlreadyExistsException;
 import software.amazon.awssdk.services.iam.IamClient;
@@ -21,10 +20,6 @@ import java.util.Objects;
 
 /*
 todo:
- Delete and redeploy or update?
-    Delete lambda before creation
-    Update labda code and config if exists
-    Lambda url sticks around after lambda deletion?
  Teardown
  */
 
@@ -135,7 +130,10 @@ public class LambdaBuilder {
             CreateFunctionUrlConfigResponse urlResponse = lambdaClient.createFunctionUrlConfig(urlRequest);
             functionUrl = urlResponse.functionUrl();
         } catch (ResourceConflictException e) {
-            GetFunctionUrlConfigRequest fur = GetFunctionUrlConfigRequest.builder().functionName(functionName).build();
+            GetFunctionUrlConfigRequest fur = GetFunctionUrlConfigRequest
+                    .builder()
+                    .functionName(functionName)
+                    .build();
             functionUrl = lambdaClient.getFunctionUrlConfig(fur).functionUrl();
         }
         return functionUrl;
@@ -144,19 +142,23 @@ public class LambdaBuilder {
     //<editor-fold desc="Resource methods">
     private void createLambdaLogGroup() {
         try {
-            CreateLogGroupResponse logGroupResponse = createLogGroup();
-            putRetentionPolicy();
+            CreateLogGroupRequest createLogGroupRequest = CreateLogGroupRequest.builder()
+                    .logGroupName(logGroupName)
+                    .build();
+            cloudWatchLogsClient.createLogGroup(createLogGroupRequest);
+
+            PutRetentionPolicyRequest putRetentionRequest = PutRetentionPolicyRequest.builder()
+                    .logGroupName(logGroupName)
+                    .retentionInDays(logGroupRetention)
+                    .build();
+            cloudWatchLogsClient.putRetentionPolicy(putRetentionRequest);
+
         } catch (ResourceAlreadyExistsException e) {
-            System.out.println("Log group already exists: " + e);
+            // If the log group already exists, continue
         }
+
     }
 
-    private CreateLogGroupResponse createLogGroup() {
-        CreateLogGroupRequest createLogGroupRequest = CreateLogGroupRequest.builder()
-                .logGroupName(logGroupName)
-                .build();
-        return cloudWatchLogsClient.createLogGroup(createLogGroupRequest);
-    }
 
     public String createLambdaRole() {
         var roleRequest = GetRoleRequest.builder()
@@ -196,13 +198,6 @@ public class LambdaBuilder {
         return iamClient.putRolePolicy(putRolePolicyRequest);
     }
 
-    private void putRetentionPolicy() {
-        PutRetentionPolicyRequest putRetentionRequest = PutRetentionPolicyRequest.builder()
-                .logGroupName(logGroupName)
-                .retentionInDays(logGroupRetention)
-                .build();
-        cloudWatchLogsClient.putRetentionPolicy(putRetentionRequest);
-    }
 
     public String createTrustPolicy() {
         Map<String, Object> policyMap = Map.of(

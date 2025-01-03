@@ -1,0 +1,3 @@
+#!/bin/sh
+cp ../CloudEventTrace/target/lambda-trace.jar ../CloudEventDeploy/src/main/resources/lambda-trace.jar
+

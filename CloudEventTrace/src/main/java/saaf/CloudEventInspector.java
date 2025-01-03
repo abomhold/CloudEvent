@@ -12,12 +12,14 @@ import java.util.Arrays;
 public class CloudEventInspector extends Inspector {
     long counter;
     Context context;
+    String callingMethodName;
 
     public CloudEventInspector(Context context) {
         super();
         this.context = context;
         counter = 0;
         addTimeStamp("initial");
+        callingMethodName = Thread.currentThread().getStackTrace()[1].getMethodName();
     }
 
     // Haven't tested data encoding
@@ -34,29 +36,27 @@ public class CloudEventInspector extends Inspector {
     }
 
     // Uses a different clock call than Inspector does
-    //  response logs might differ from cloud logs slightly
+    //  response logs might differ slightly from cloud logs
     private void createCloudEvent(String key, CloudEventData data) {
-        String cloudEvent = CloudEventBuilder
-                .v1()
-                .withId(context.getAwsRequestId() + ":" + counter++)
-                .withSource(getURI())
-                .withType(key)
-                .withTime(OffsetDateTime.now())
-                .withData(data)
-                .build()
-                .toString();
+        String cloudEvent = CloudEventBuilder.v1()
+                                             .withId(context.getAwsRequestId() + ":" + counter++)
+                                             .withSource(getURI())
+                                             .withType(key)
+                                             .withTime(OffsetDateTime.now())
+                                             .withData(data)
+                                             .build()
+                                             .toString();
         context.getLogger().log(cloudEvent + System.lineSeparator());
     }
 
-    // For the stack trace to work effectively the method searched for
-    //  must be the method that contains the timestamps calls
+    // Single method scope
     private URI getURI() {
-        String handleRequestTrace = Arrays.stream(Thread.currentThread().getStackTrace())
-                .filter(elem -> elem.getMethodName().equals("handleRequest"))
-                .findFirst()
-                .map(StackTraceElement::toString)
-                .orElse(context.getLogGroupName() + ":" + context.getLogStreamName());
-        return URI.create("urn:" + context.getInvokedFunctionArn() + ":" + handleRequestTrace);
+        String methodTrace = Arrays.stream(Thread.currentThread().getStackTrace())
+                                          .filter(elem -> elem.getMethodName().equals("handleRequest"))
+                                          .findFirst()
+                                          .map(StackTraceElement::toString)
+                                          .orElse(context.getLogGroupName() + ":" + context.getLogStreamName());
+        return URI.create("urn:" + context.getInvokedFunctionArn() + ":" + methodTrace);
     }
 
 
